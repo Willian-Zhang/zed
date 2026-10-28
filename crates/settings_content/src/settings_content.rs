@@ -354,9 +354,16 @@ pub struct ZedLinkSettingsContent {
     /// created in its `probe` child directory.
     pub state_directory: Option<String>,
 
-    /// Absolute path of the one project whose explicitly exposed Agent threads
-    /// may be controlled through ZedLink.
+    /// Absolute path of the primary project whose explicitly exposed Agent
+    /// threads may be controlled through ZedLink.
     pub project_root: Option<String>,
+
+    /// Absolute paths of additional projects whose explicitly exposed Agent
+    /// threads may be controlled through ZedLink. Each path must exactly match
+    /// a folder opened in a Zed workspace.
+    ///
+    /// Default: []
+    pub project_roots: Option<Vec<String>>,
 
     /// Starts the configured ZedLink gateway when the local bridge starts.
     ///
