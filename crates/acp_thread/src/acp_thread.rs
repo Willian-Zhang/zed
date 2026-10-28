@@ -4087,6 +4087,14 @@ impl AcpThread {
         client_id.is_some() && self.parent_session_id.is_none() && self.supports_truncate(cx)
     }
 
+    /// Remote projects skip checkpoints: this fork's client can be paired with a
+    /// newer downloaded remote server that no longer handles `GitCreateCheckpoint`
+    /// (upstream removed agent checkpoints in #65989), and that request never
+    /// gets a reply, so the send would wait forever before reaching the agent.
+    fn should_checkpoint(&self, client_id: Option<&ClientUserMessageId>, cx: &App) -> bool {
+        self.can_rewind_to(client_id, cx) && !self.project.read(cx).is_via_remote_server()
+    }
+
     pub fn work_dirs(&self) -> Option<&PathList> {
         self.session_info.work_dirs.as_ref()
     }
@@ -6746,7 +6754,7 @@ impl AcpThread {
         content: Vec<acp_v2::ContentBlock>,
         cx: &mut Context<Self>,
     ) -> Result<Task<()>> {
-        let should_checkpoint = !content.is_empty() && self.can_rewind_to(Some(&id), cx);
+        let should_checkpoint = !content.is_empty() && self.should_checkpoint(Some(&id), cx);
         self.upsert_local_user_message(id.clone(), content, cx)?;
         if !should_checkpoint {
             return Ok(Task::ready(()));
@@ -6824,7 +6832,7 @@ impl AcpThread {
         let client_id = client_user_message_ids
             .as_ref()
             .map(|client_user_message_ids| client_user_message_ids.new_id());
-        let should_checkpoint = self.can_rewind_to(client_id.as_ref(), cx);
+        let should_checkpoint = self.should_checkpoint(client_id.as_ref(), cx);
 
         self.run_turn(id, cx, async move |this, cx| {
             if push_user_message {
