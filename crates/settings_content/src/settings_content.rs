@@ -360,7 +360,9 @@ pub struct ZedLinkSettingsContent {
 
     /// Absolute paths of additional projects whose explicitly exposed Agent
     /// threads may be controlled through ZedLink. Each path must exactly match
-    /// a folder opened in a Zed workspace.
+    /// a folder opened in a Zed workspace. Use `ssh://host/absolute/path` for a
+    /// folder of an SSH project; remote projects don't offer file, search or
+    /// Git access.
     ///
     /// Default: []
     pub project_roots: Option<Vec<String>>,
