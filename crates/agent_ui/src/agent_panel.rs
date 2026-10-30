@@ -43,7 +43,9 @@ use crate::terminal_thread_metadata_store::{
     TerminalThreadMetadata, TerminalThreadMetadataStore, compose_terminal_thread_title,
     normalize_terminal_custom_title, terminal_title_without_prefix,
 };
-use crate::thread_metadata_store::{ThreadId, ThreadMetadataStore, ThreadMetadataStoreEvent};
+use crate::thread_metadata_store::{
+    ThreadId, ThreadMetadata, ThreadMetadataStore, ThreadMetadataStoreEvent,
+};
 use crate::{
     Agent, AgentInitialContent, AgentThreadSource, ExternalSourcePrompt, NewExternalAgentThread,
     NewNativeAgentThreadFromSummary,
@@ -3269,6 +3271,38 @@ impl AgentPanel {
         thread_id
     }
 
+    /// Loads a saved thread into this panel without activating it, so ZedLink
+    /// can expose a thread from history without changing what the desktop
+    /// shows or which agent new threads use.
+    #[cfg(unix)]
+    pub(crate) fn load_thread_in_background(
+        &mut self,
+        metadata: &ThreadMetadata,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<ConversationView> {
+        if let Some(conversation_view) = self.conversation_view_for_id(&metadata.thread_id, cx) {
+            return conversation_view.clone();
+        }
+        let selected_agent = self.selected_agent.clone();
+        let thread = self.create_agent_thread_with_server(
+            Agent::from(metadata.agent_id.clone()),
+            None,
+            Some(metadata.thread_id),
+            Some(metadata.folder_paths().clone()),
+            metadata.title(),
+            None,
+            None,
+            AgentThreadSource::AgentPanel,
+            window,
+            cx,
+        );
+        self.set_selected_agent_and_persist(selected_agent, cx);
+        let conversation_view = thread.conversation_view;
+        self.insert_retained_thread(metadata.thread_id, conversation_view.clone(), cx);
+        conversation_view
+    }
+
     pub fn activate_retained_thread(
         &mut self,
         id: ThreadId,
@@ -4310,6 +4344,10 @@ impl AgentPanel {
                     return true;
                 };
                 let thread = thread_view.read(cx).thread.read(cx);
+                #[cfg(unix)]
+                if crate::zedlink_probe::keeps_thread_loaded(thread, cx) {
+                    return false;
+                }
                 thread.connection().supports_load_session() && thread.is_idle_for_retention()
             })
             .collect::<Vec<_>>();

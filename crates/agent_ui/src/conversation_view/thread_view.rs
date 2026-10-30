@@ -3299,7 +3299,9 @@ impl ThreadView {
         entry.content = content.clone();
         entry.tracked_buffers.clear();
         let editor = entry.editor.clone();
-        editor.update(cx, |editor, cx| editor.set_source_message(content, window, cx));
+        editor.update(cx, |editor, cx| {
+            editor.set_source_message(content, window, cx)
+        });
         self.sync_queue_flag_to_native_thread(cx);
         cx.notify();
         true
