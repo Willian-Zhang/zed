@@ -2954,6 +2954,7 @@
     "project_roots": [],
     "start_gateway_on_launch": true,
     "manager_path": "",
+    "allow_remote_attach": false,
     "allow_session_creation": true,
     "allow_attachments": true,
     "allow_project_context": true,

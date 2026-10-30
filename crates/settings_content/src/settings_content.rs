@@ -376,6 +376,12 @@ pub struct ZedLinkSettingsContent {
     /// gateway without duplicating route or TLS settings in Zed.
     pub manager_path: Option<String>,
 
+    /// Allows paired devices to list Agent threads already open in a configured
+    /// project and connect to them without running /remote-control in Zed.
+    ///
+    /// Default: false
+    pub allow_remote_attach: Option<bool>,
+
     /// Allows paired devices to create new native Agent sessions in the
     /// configured project.
     ///

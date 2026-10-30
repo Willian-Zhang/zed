@@ -1350,9 +1350,31 @@ fn zedlink_page() -> SettingsPage {
         ]
     }
 
-    fn access_section() -> [SettingsPageItem; 15] {
+    fn access_section() -> [SettingsPageItem; 16] {
         [
             SettingsPageItem::SectionHeader("Remote Permissions"),
+            SettingsPageItem::SettingItem(SettingItem {
+                title: "Connect to Open Threads",
+                description: "Allow paired devices to list Agent threads already open in a configured project and connect to them without /remote-control.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("zedlink.allow_remote_attach"),
+                    pick: |settings_content| {
+                        settings_content
+                            .zedlink
+                            .as_ref()
+                            .and_then(|zedlink| zedlink.allow_remote_attach.as_ref())
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .zedlink
+                            .get_or_insert_default()
+                            .allow_remote_attach = value
+                    },
+                }),
+                metadata: None,
+                files: USER,
+            }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Create Sessions",
                 description: "Allow paired devices to create new native Agent sessions in this project. Every existing thread still requires /remote-control.",

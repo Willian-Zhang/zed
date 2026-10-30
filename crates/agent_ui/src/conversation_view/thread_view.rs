@@ -1503,18 +1503,38 @@ impl ThreadView {
                 if self.parent_session_id.is_some() {
                     return;
                 }
+                use crate::zedlink_probe::ExposureChange;
                 match crate::zedlink_probe::toggle_thread_exposure(&self.thread, cx) {
-                    Some(true) => {
+                    ExposureChange::Exposed => {
                         self.show_local_command_toast("Thread exposed to ZedLink locally", cx)
                     }
-                    Some(false) => self.show_local_command_toast("ZedLink exposure stopped", cx),
-                    None => self.show_local_command_toast("ZedLink local probe unavailable", cx),
+                    ExposureChange::Stopped => {
+                        self.show_local_command_toast("ZedLink exposure stopped", cx)
+                    }
+                    ExposureChange::WaitingForConnection(host) => self.show_local_command_toast(
+                        format!("ZedLink will expose this thread once {host} is connected"),
+                        cx,
+                    ),
+                    ExposureChange::CancelledWaiting => {
+                        self.show_local_command_toast("ZedLink exposure cancelled", cx)
+                    }
+                    ExposureChange::NotInExposedProject => self.show_local_command_toast(
+                        "This thread's project isn't configured for ZedLink",
+                        cx,
+                    ),
+                    ExposureChange::ProbeUnavailable => {
+                        self.show_local_command_toast("ZedLink local probe unavailable", cx)
+                    }
                 }
             }
         }
     }
 
-    fn show_local_command_toast(&self, message: impl Into<SharedString>, cx: &mut Context<Self>) {
+    pub(crate) fn show_local_command_toast(
+        &self,
+        message: impl Into<SharedString>,
+        cx: &mut Context<Self>,
+    ) {
         // Shown after positive feedback, replacing the inline button state.
         let Some(workspace) = self.workspace.upgrade() else {
             return;
@@ -3238,6 +3258,51 @@ impl ThreadView {
         self.message_queue.toggle_steer(id);
         self.sync_queue_flag_to_native_thread(cx);
         cx.notify();
+    }
+
+    /// Sets rather than toggles, so a retried remote request can't flip the
+    /// flag back.
+    pub(crate) fn set_queue_entry_steer(
+        &mut self,
+        id: QueueEntryId,
+        steer: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(entry) = self.message_queue.entry_by_id_mut(id) {
+            entry.steer = steer;
+        }
+        self.sync_queue_flag_to_native_thread(cx);
+        cx.notify();
+    }
+
+    /// Replaces a text-only queued message, keeping its place, steer flag and
+    /// remote origin. Messages with mentions or images are left untouched.
+    pub(crate) fn replace_queued_message_text(
+        &mut self,
+        id: QueueEntryId,
+        text: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(entry) = self.message_queue.entry_by_id_mut(id) else {
+            return false;
+        };
+        if entry.content.is_empty()
+            || !entry
+                .content
+                .iter()
+                .all(|block| matches!(block, acp_v2::ContentBlock::Text(_)))
+        {
+            return false;
+        }
+        let content = vec![acp_v2::ContentBlock::Text(acp_v2::TextContent::new(text))];
+        entry.content = content.clone();
+        entry.tracked_buffers.clear();
+        let editor = entry.editor.clone();
+        editor.update(cx, |editor, cx| editor.set_source_message(content, window, cx));
+        self.sync_queue_flag_to_native_thread(cx);
+        cx.notify();
+        true
     }
 
     pub fn sync_queue_flag_to_native_thread(&self, cx: &mut Context<Self>) {
